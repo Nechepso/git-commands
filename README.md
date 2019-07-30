@@ -5,7 +5,7 @@ Description
 -----------
 
 This repository hosts a collection of miscellaneous extra Git commands (in the
-form of scripts building mostly on top of Git plumbing commands) that have
+form of scripts, mostly building on top of Git plumbing commands) that have
 proved useful.
 
 Installation
@@ -23,8 +23,8 @@ Commands
 
 Usage: `git disseminate [A...B]`
 
-**Finds all non-merged commits in `A` but not in `B`** (that have not been
-cherry-picked from `B`, looking for at most 1,000 commits) that contains
+**Finds non-merge commits in `A` but not in `B`** (that have not been
+cherry-picked from `B`, limited to at most 1,000 commits) that contains
 `!disseminate!` in their commit message, **and cherry-picks them to the current
 branch.**
 
