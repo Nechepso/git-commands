@@ -1,5 +1,47 @@
 #!/bin/sh -e
-commits=`git rev-list -F -n 1000 --left-only --cherry-pick --no-merges \
-    --reverse --grep='!disseminate!' "${1:-master...$(git rev-parse \
-    --abbrev-ref HEAD)}"`
-[ -n "$commits" ] && git cherry-pick --rerere-autoupdate $commits
+
+GIT_REPOSITORY_ROOT=$(git rev-parse --show-toplevel)
+GITDISSEMINATED_FILENAME=".gitdisseminated"
+GITDISSEMINATED_PATH="${GIT_REPOSITORY_ROOT}/${GITDISSEMINATED_FILENAME}"
+GITDISSEMINATED_ATTRIBUTES="${GITDISSEMINATED_FILENAME} text eol=lf"
+GITATTRIBUTES_FILE="${GIT_REPOSITORY_ROOT}/.gitattributes"
+
+fix_eol () {
+    eol=$(git check-attr -z eol -- "$1" | cut -d '' -f 3)
+    if [ "${eol}" = unspecified ]; then
+        autocrlf=$(git config -z --get core.autocrlf | cut -d '' -f 1)
+        if [ "${autocrlf}" = true ] || [ "${autocrlf}" = false ]; then
+            eol=crlf
+        elif [ "${autocrlf}" = input ]; then
+            eol=lf
+        fi
+    fi
+    if [ "${eol}" = crlf ]; then
+        unix2dos -q -- "$1"
+    elif [ "${eol}" = lf ]; then
+        dos2unix -q -- "$1"
+    fi
+}
+
+# Find all commits tagged with '!disseminate!' in $1 (defaulting to
+# origin/master) but not already in HEAD and not listed .gitdisseminated
+commits=$(git rev-list -F -n 1000 --cherry-pick --right-only --no-merges \
+    --reverse --grep='!disseminate!' "HEAD...${1:-origin/master}")
+if [ -f "${GITDISSEMINATED_PATH}" ]; then
+    commits=$(echo "${commits}" | cat -- - "${GITDISSEMINATED_PATH}" \
+        "${GITDISSEMINATED_PATH}" | sort | uniq -u)
+fi
+
+if [ -n "${commits}" ]; then
+    if ! grep -q -F -- "${GITDISSEMINATED_ATTRIBUTES}" "${GITATTRIBUTES_FILE}"
+    then
+        echo "${GITDISSEMINATED_ATTRIBUTES}" >> "${GITATTRIBUTES_FILE}"
+        fix_eol "${GITATTRIBUTES_FILE}"
+        git add "${GITATTRIBUTES_FILE}"
+    fi
+    echo "${commits}" >> "${GITDISSEMINATED_PATH}"
+    git add "${GITDISSEMINATED_PATH}"
+    git commit -m "Update the list of disseminated commits"
+    #shellcheck disable=SC2086
+    git cherry-pick -x --rerere-autoupdate ${commits}
+fi
